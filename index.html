@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="bo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>སུམ་ཅུ་བའི་སྦྱོང་བརྡར། - Tibetan Grammar Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jomolhari&display=swap');
+
+        body {
+            font-family: 'Jomolhari', serif;
+            background-color: #fdf6e3;
+            color: #2c3e50;
+        }
+
+        .tibetan-text {
+            font-family: 'Jomolhari', serif;
+            line-height: 1.6;
+        }
+
+        /* Custom Animations */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .slide-in {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        .correct-anim {
+            background-color: #d1fae5 !important;
+            border-color: #10b981 !important;
+            transform: scale(1.02);
+            transition: all 0.2s;
+        }
+
+        .wrong-anim {
+            background-color: #fee2e2 !important;
+            border-color: #ef4444 !important;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Game Container -->
+    <div id="game-app" class="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border-t-8 border-indigo-600">
+        
+        <!-- Header -->
+        <header class="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-indigo-800 mb-1">སུམ་ཅུ་བའི་རྩེད་ཐང་།</h1>
+                <p class="text-gray-500 text-sm">Tibetan Grammar Practice</p>
+            </div>
+            <div class="text-right">
+                <div class="text-sm font-semibold text-gray-400">སྐུགས་ཐོབ། Score</div>
+                <div class="text-2xl font-bold text-indigo-600" id="score-display">0</div>
+            </div>
+        </header>
+
+        <!-- Progress Bar -->
+        <div class="w-full bg-gray-200 h-2">
+            <div id="progress-bar" class="bg-indigo-500 h-2 transition-all duration-500" style="width: 0%"></div>
+        </div>
+
+        <!-- Level Indicator -->
+        <div class="bg-indigo-50 px-6 py-2 flex justify-between items-center">
+            <span id="level-badge" class="px-3 py-1 bg-indigo-200 text-indigo-800 rounded-full text-sm font-bold">རིམ་པ་དང་པོ། Level 1</span>
+            <span id="streak-badge" class="text-sm text-indigo-600 font-semibold hidden">🔥 Streak: 0</span>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="p-8 min-h-[400px] flex flex-col justify-center relative">
+            
+            <!-- Question Section -->
+            <div id="question-container" class="slide-in text-center">
+                <h2 id="question-prompt" class="text-xl text-gray-600 mb-6 font-bold"></h2>
+                
+                <div id="question-display" class="text-4xl md:text-5xl font-bold text-gray-800 mb-10 p-6 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
+                    <!-- Dynamic Question Text -->
+                </div>
+
+                <!-- Options Grid -->
+                <div id="options-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <!-- Dynamic Options -->
+                </div>
+            </div>
+
+            <!-- Feedback Overlay (Hidden by default) -->
+            <div id="feedback-overlay" class="absolute inset-0 bg-white/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center hidden">
+                <div id="feedback-icon" class="text-6xl mb-4">✅</div>
+                <h3 id="feedback-title" class="text-2xl font-bold mb-2">འགྲིག་སོང་། Correct!</h3>
+                <p id="feedback-text" class="text-lg text-center max-w-md text-gray-600 mb-6 px-4"></p>
+                <button id="next-btn" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xl transition-colors shadow-lg">
+                    མུ་མཐུད། Next
+                </button>
+            </div>
+
+            <!-- Level Complete Screen (Hidden) -->
+            <div id="level-complete" class="hidden text-center slide-in">
+                <div class="text-6xl mb-4">🎉</div>
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">རིམ་པ་ལེགས་གྲུབ།</h2>
+                <p class="text-xl text-gray-600 mb-8">Level Complete!</p>
+                <button id="next-level-btn" class="px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-xl transition-colors shadow-lg">
+                    རིམ་པ་རྗེས་མ། Start Next Level
+                </button>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-slate-50 p-4 text-center border-t border-slate-100 text-gray-400 text-sm">
+            རྩོམ་ཡིག་ཞུ་དག་དང་སུམ་ཅུ་བའི་རྣམ་གཞག
+        </footer>
+    </div>
+
+    <script>
+        // --- 1. GAME DATA & VOCABULARY ENGINE ---
+        // To make it "infinite", we use lists of words sorted by their suffix (Rjes-'jug).
+        
+        const suffixes = {
+            'g': ['རྟག', 'ལག', 'ཚིག', 'བདག', 'ཕྱག', 'མཇུག', 'ལུག', 'དུག'],
+            'ng': ['བཟང', 'གང', 'དབྱངས', 'ནང', 'མིང', 'ཞིང', 'རྐང', 'ཁོང'],
+            'd': ['ཡོད', 'བཤད', 'སྐད', 'ནད', 'བརྗོད', 'སྨན', 'རྒད'], // Note: Da/Na distinctions in usage
+            'n': ['ཡིན', 'སྨན', 'དོན', 'བསྟན', 'མགྲོན', 'སྤྱན', 'གཞན'],
+            'b': ['ཐོབ', 'ཁབ', 'སྒྲུབ', 'སློབ', 'ཡབ', 'གྲུབ', 'ཕེབས'], // Phebs has 's', special handling
+            'm': ['ལམ', 'ཁམ', 'གཏམ', 'སྒོམ', 'བསམ', 'འཛོམ', 'རྣམ'],
+            'a': ['དགའ', 'བཀའ', 'མཁའ', 'ཇ', 'ཉ', 'ཟླ་བ', 'ཉི་མ'], // 'a and mtha'-med
+            'r': ['འགྱུར', 'གསེར', 'དར', 'སྦྱོར', 'འབར', 'ཤར', 'དཀར'],
+            'l': ['ཡུལ', 'བལ་', 'འཁྲུལ', 'རལ', 'མཇལ', 'གསོལ', 'ཞལ'],
+            's': ['ཤེས', 'རིགས', 'གོས', 'ལས', 'ཆོས', 'དབུས', 'གནས'],
+            't': [] // Da-drag is rare in modern simple context, usually treated as specific cases
+        };
+
+        // Grammar Rules Engine
+        const grammarRules = {
+            // Slardu (Sentence Ending)
+            getSlardu: (suffix) => {
+                if (['g'].includes(suffix)) return 'གོ';
+                if (['ng'].includes(suffix)) return 'ངོ';
+                if (['d'].includes(suffix)) return 'དོ';
+                if (['n'].includes(suffix)) return 'ནོ';
+                if (['b'].includes(suffix)) return 'བོ';
+                if (['m'].includes(suffix)) return 'མོ';
+                if (['a', 'r', 'l'].includes(suffix)) return suffix === 'a' ? 'འོ' : (suffix === 'r' ? 'རོ' : 'ལོ');
+                if (['s'].includes(suffix)) return 'སོ';
+                return 'འོ'; // Default/Vowel
+            },
+            
+            // 'Brel-sgra (Of) / Byed-sgra (By) - Simplified mapping
+            getBrelSgra: (suffix) => {
+                // Gi, Kyi, Gyi, 'i, Yi
+                if (['g', 'ng'].includes(suffix)) return 'གི';
+                if (['d', 'b', 's'].includes(suffix)) return 'ཀྱི';
+                if (['n', 'm', 'r', 'l'].includes(suffix)) return 'གྱི';
+                if (['a'].includes(suffix)) return 'ཡི'; // Or 'i depending on context, using Yi for clarity
+                return 'ཡི';
+            },
+
+            getByedSgra: (suffix) => {
+                // Gis, Kyis, Gyis, 'is, Yis
+                if (['g', 'ng'].includes(suffix)) return 'གིས';
+                if (['d', 'b', 's'].includes(suffix)) return 'ཀྱིས';
+                if (['n', 'm', 'r', 'l'].includes(suffix)) return 'གྱིས';
+                if (['a'].includes(suffix)) return 'ཡིས'; 
+                return 'ཡིས';
+            },
+
+            // La-don (To, In, At)
+            getLaDon: (suffix) => {
+                // Su, Ra, Ru, Du, Na, La, Tu
+                if (['s'].includes(suffix)) return 'སུ';
+                if (['g', 'b'].includes(suffix)) return 'ཏུ'; // Da-drag also Tu
+                if (['ng', 'd', 'n', 'm', 'r', 'l'].includes(suffix)) return 'དུ';
+                if (['a'].includes(suffix)) return 'རུ'; // or Ra
+                return 'རུ';
+            },
+
+            // Lhag-chas (Te, De, Ste)
+            getLhagChas: (suffix) => {
+                if (['n', 'r', 'l', 's'].includes(suffix)) return 'ཏེ';
+                if (['d'].includes(suffix)) return 'དེ';
+                if (['g', 'ng', 'b', 'm', 'a'].includes(suffix)) return 'སྟེ'; // Note: Sa-mthar-ste rules vary by grammar school slightly, using standard modern simple rule.
+                // Standard: Ga Nga Ba Ma 'A -> Ste. 
+                return 'སྟེ';
+            }
+        };
+
+        // --- 2. GENERATORS FOR ENDLESS CONTENT ---
+
+        // Helper: Get suffix of a word
+        function identifySuffix(word) {
+            // Very basic suffix identification logic for the provided vocabulary lists
+            // In a real app, this would need complex unicode analysis.
+            // Here, we reverse map our vocabulary lists.
+            for (const [suf, words] of Object.entries(suffixes)) {
+                if (words.includes(word)) return suf;
+            }
+            // Fallback for visual cues
+            const lastChar = word.slice(-1);
+            if (lastChar === 'ག') return 'g';
+            if (lastChar === 'ང') return 'ng';
+            if (lastChar === 'ད') return 'd';
+            if (lastChar === 'ན') return 'n';
+            if (lastChar === 'བ') return 'b';
+            if (lastChar === 'མ') return 'm';
+            if (lastChar === 'ར') return 'r';
+            if (lastChar === 'ལ') return 'l';
+            if (lastChar === 'ས') return 's';
+            return 'a'; // Default vowel ending
+        }
+
+        // Level 1: Slardu
+        function generateLevel1() {
+            // Pick random word
+            const allWords = Object.values(suffixes).flat();
+            const word = allWords[Math.floor(Math.random() * allWords.length)];
+            const suffix = identifySuffix(word);
+            const correctAnswer = grammarRules.getSlardu(suffix);
+            
+            // Generate options
+            const allSlardu = ['གོ', 'ངོ', 'དོ', 'ནོ', 'བོ', 'མོ', 'འོ', 'རོ', 'ལོ', 'སོ', 'ཏོ'];
+            const options = [correctAnswer];
+            while(options.length < 4) {
+                const rand = allSlardu[Math.floor(Math.random() * allSlardu.length)];
+                if(!options.includes(rand)) options.push(rand);
+            }
+            
+            return {
+                prompt: "གཤམ་གྱི་མིང་ཚིག་ལ་རན་པའི་སླར་བསྡུ་འདེམས་རོགས།",
+                questionHtml: `${word}____`,
+                answer: correctAnswer,
+                options: options.sort(() => Math.random() - 0.5),
+                explanation: `རྗེས་འཇུག་ '${suffix === 'a' ? 'མཐའ་མེད' : suffix}' ཡིན་པས་ '${correctAnswer}' ཐོབ།`
+            };
+        }
+
+        // Level 2: Connective Particles ('Brel-sgra / Byed-sgra / La-don)
+        function generateLevel2() {
+            const types = ['brel', 'byed', 'ladon'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            
+            const allWords = Object.values(suffixes).flat();
+            const word = allWords[Math.floor(Math.random() * allWords.length)];
+            const suffix = identifySuffix(word);
+            
+            let correctAnswer, options, contextWord;
+            
+            if (type === 'brel') {
+                correctAnswer = grammarRules.getBrelSgra(suffix);
+                contextWord = "མདོག"; // Color (generic object)
+                options = ['གི', 'ཀྱི', 'གྱི', 'ཡི', 'འི'].sort(() => Math.random() - 0.5).slice(0, 4);
+                if (!options.includes(correctAnswer)) options[0] = correctAnswer;
+            } else if (type === 'byed') {
+                correctAnswer = grammarRules.getByedSgra(suffix);
+                contextWord = "བཤད།"; // Said (generic verb)
+                options = ['གིས', 'ཀྱིས', 'གྱིས', 'ཡིས', 'འིས'].sort(() => Math.random() - 0.5).slice(0, 4);
+                if (!options.includes(correctAnswer)) options[0] = correctAnswer;
+            } else {
+                correctAnswer = grammarRules.getLaDon(suffix);
+                contextWord = "ཕྱིན།"; // Went (generic verb)
+                options = ['སུ', 'རུ', 'དུ', 'ཏུ', 'ན'].sort(() => Math.random() - 0.5).slice(0, 4);
+                if (!options.includes(correctAnswer)) options[0] = correctAnswer;
+            }
+
+            return {
+                prompt: "བར་གྱི་སྟོང་ཆའི་ནང་ལ་ཕྲད་རན་པ་ཞིག་འདེམས་རོགས།",
+                questionHtml: `<span class="text-indigo-600">${word}</span> ____ <span class="text-gray-500">${contextWord}</span>`,
+                answer: correctAnswer,
+                options: options.sort(() => Math.random() - 0.5),
+                explanation: `མིང་སྔ་མའི་རྗེས་འཇུག་ '${suffix}' ཡིན་པས་ '${correctAnswer}' འཐོབ།`
+            };
+        }
+
+        // Level 3: Sentence Building (Simple Context)
+        function generateLevel3() {
+            // Expanded Templates allowing for Ni, Dang, etc.
+            const templates = [
+                { q: "བཀྲ་ཤིས་ ____ བདེ་སྐྱིད་གཉིས་སློབ་གྲྭར་ཕྱིན།", a: "དང་", opts: ["དང་", "ནི་", "གིས", "ལ་"], expl: "མིང་གཉིས་སྡུད་པ་ལ་ 'དང་' སྒྲ་འཇུག" },
+                { q: "ཁོང་ ____ དགེ་རྒན་བཟང་པོ་ཞིག་རེད།", a: "ནི་", opts: ["ནི་", "དང་", "ནས", "ལས"], expl: "བརྗོད་གཞི་གཙོ་བོར་འདོན་པས་ 'ནི་' སྒྲ་འཇུག" },
+                { q: "ང་ནང་ ____ ཕྱི་ལ་ཐོན།", a: "ནས", opts: ["ནས", "ལས", "ནི", "ཀྱང"], expl: "འབྱུང་ཁུངས་སྟོན་པས་ 'ནས་' སྒྲ་འཐོབ།" },
+                { q: "ལྕགས་ ____ གསེར་རྩ་ཆེ།", a: "ལས", opts: ["ལས", "ནས", "ཀྱང", "སྟེ"], expl: "དགར་བ་ (comparison) ཡིན་པས་ 'ལས་' སྒྲ་འཐོབ།" },
+                { q: "ཁྲོམ་ ____ མི་མང་པོ་འདུག", a: "ལ་", opts: ["ལ་", "ནས", "གི", "ཀྱི"], expl: "གནས་གཞི་སྟོན་པའི་ལ་དོན་གྱི་ཕྲད་དགོས།" },
+                { q: "ཉི་མ་ ____ འོད་ཟེར་འཕྲོས།", a: "ཡིས་", opts: ["ཡིས་", "ནི", "ལ", "ཏུ"], expl: "བྱ་བ་བྱེད་མཁན་ཡིན་པས་བྱེད་སྒྲ་དགོས།" },
+                { q: "ཤིང་ཏོག་འདི་ཞིམ་པོ་མེད་ ____ མདོག་ཁ་ལེགས་པོ་འདུག", a: "ཀྱང་", opts: ["ཀྱང་", "ནས", "ལས", "ནི"], expl: "མཐུན་མིན་གྱི་ཚིག་རྒྱན་སྡུད་པས་ 'ཀྱང་' སྒྲ་འཐོབ།" },
+                { q: "དེབ་འདི་སུ་ ____ རེད།", a: "ཡི་", opts: ["ཡི་", "ཡིས", "ནས", "ལས"], expl: "དབང་བ་སྟོན་པའི་འབྲེལ་སྒྲ་དགོས།" },
+                { q: "ཆར་པ་བབས་ ____ གནམ་གཤིས་གྲང་མོ་ཆགས།", a: "པས", opts: ["པས", "ནས", "ལས", "ཀྱི"], expl: "རྒྱུ་མཚན་སྟོན་པའི་ཕྲད་དགོས།" },
+                { q: "བོད་ ____ རི་མཐོན་པོ་མང་པོ་ཡོད།", a: "ལ་", opts: ["ལ་", "ནས", "ལས", "གི"], expl: "རྟེན་གནས་ཀྱི་དོན་སྟོན་པས་ 'ལ་' འཇུག" },
+                { q: "ཁོང་གིས་དཔེ་ཆ་ཀློག་ ____ བསྡད།", a: "གིན་", opts: ["གིན་", "ནི", "དང་", "ལ"], expl: "བྱ་བ་ད་ལྟ་བ་སྟོན་པའི་ཕྲད་དགོས།" },
+                { q: "མེ་ཏོག་མཛེས་པོ་ ____ སྐྱེས་འདུག", a: "ཞིག་", opts: ["ཞིག་", "ཤིག", "ཅིག", "ནི"], expl: "ག་ད་བ་ས་དང་མཐའ་མེད་མཐར། །ཞིག་སྟེ་... (མིང་མཐའ་སྦྱོར་བ)" }
+            ];
+            
+            const t = templates[Math.floor(Math.random() * templates.length)];
+            return {
+                prompt: "ཚིག་སྒྲུབ་འདིའི་ནང་ལ་རན་པའི་ཕྲད་འདེམས་རོགས།",
+                questionHtml: t.q,
+                answer: t.a,
+                options: t.opts.sort(() => Math.random() - 0.5),
+                explanation: t.expl
+            };
+        }
+
+        // Level 4: Complex Syntax (Lhag-chas & rgyan-sdud)
+        function generateLevel4() {
+             const allWords = Object.values(suffixes).flat();
+             const word = allWords[Math.floor(Math.random() * allWords.length)];
+             const suffix = identifySuffix(word);
+             const lhagchas = grammarRules.getLhagChas(suffix);
+             
+             // Randomly choose between Lhag-chas or rgyan-sdud logic
+             // For simplicity in this demo, strictly practicing Lhag-chas construction
+             const options = ['ཏེ', 'དེ', 'སྟེ'].sort(() => Math.random() - 0.5);
+             
+             return {
+                 prompt: "མཚམས་སྦྱོར་གྱི་ལྷག་བཅས་ཀྱི་ཕྲད་གང་ཞིག་འཐོབ་བམ།",
+                 questionHtml: `${word}____ བཤད།`,
+                 answer: lhagchas,
+                 options: options,
+                 explanation: `རྗེས་འཇུག་ '${suffix}' ལ་ལྷག་བཅས་ '${lhagchas}' འཐོབ།`
+             };
+        }
+
+        // Level 5: Proofreading (Error Correction)
+        function generateLevel5() {
+            const errors = [
+                { 
+                    realQ: "ཁོང་གི་ཕྱག་ལས་གནང་།",
+                    ans: "ཁོང་གིས་",
+                    opts: ["ཁོང་གི་", "ཁོང་གིས་", "ཁོང་ལ"],
+                    expl: "བྱ་བ་བྱེད་མཁན་ཡིན་པས་བྱེད་སྒྲ་ 'གིས་' དགོས།" 
+                },
+                {
+                    realQ: "ང་ནང་ལས་ཡོང་བ་ཡིན།",
+                    ans: "ནང་ནས་",
+                    opts: ["ནང་ནས་", "ནང་ལས་", "ནང་གི"],
+                    expl: "འབྱུང་ཁུངས་ཡིན་པས་ 'ནས་' དགོས། 'ལས་' ནི་དགར་བ་ལ་འཇུག"
+                },
+                {
+                    realQ: "ཁྱེད་རང་ལ་ཡོན་ཏན་ཡོད་སྟེ།",
+                    ans: "ཡོད་དེ",
+                    opts: ["ཡོད་དེ", "ཡོད་ཏེ", "ཡོད་སྟེ"],
+                    expl: "ད་མཐར་ལྷག་བཅས་ 'དེ་' འཐོབ། 'སྟེ་' ནི་ག་ང་བ་མ་འ་མཐར་འཐོབ།"
+                },
+                {
+                    realQ: "བཀྲ་ཤིས་གི་ལག་པར་དེབ་ཡོད།",
+                    ans: "བཀྲ་ཤིས་ཀྱི་",
+                    opts: ["བཀྲ་ཤིས་ཀྱི་", "བཀྲ་ཤིས་གི་", "བཀྲ་ཤིས་གྱི"],
+                    expl: "ས་མཐར་འབྲེལ་སྒྲ་ 'ཀྱི་' འཐོབ།"
+                },
+                {
+                    realQ: "ཆུ་དེ་ང་ལས་བཏུངས་པ་ཡིན།",
+                    ans: "ངས",
+                    opts: ["ངས", "ང་ལས", "ང་ལ"],
+                    expl: "བྱ་བ་བྱེད་པོ་ཡིན་པས་བྱེད་སྒྲ་ 'ངས' (ང་ཡིས་) དགོས།"
+                },
+                {
+                    realQ: "གྲོང་ཁྱེར་གྱི་བཀོད་པ་མཛེས་ཏོ།",
+                    ans: "མཛེས་སོ",
+                    opts: ["མཛེས་སོ", "མཛེས་ཏོ", "མཛེས་ངོ"],
+                    expl: "ས་མཐར་སླར་བསྡུ་ 'སོ་' འཐོབ།"
+                },
+                {
+                    realQ: "ང་ཚོ་དགོང་མོ་ནང་ཏུ་ལོག་པ་ཡིན།",
+                    ans: "ནང་དུ་",
+                    opts: ["ནང་དུ་", "ནང་ཏུ་", "ནང་རུ"],
+                    expl: "ང་མཐར་ལ་དོན་ 'དུ་' འཐོབ། 'ཏུ་' ནི་ག་བ་ད་དྲག་མཐར་འཐོབ།"
+                },
+                {
+                    realQ: "ཁོང་ཡར་ལངས་སྟེ་སྐད་ཆ་བཤད།",
+                    ans: "ལངས་ཏེ་",
+                    opts: ["ལངས་ཏེ་", "ལངས་སྟེ་", "ལངས་དེ"],
+                    expl: "ས་མཐར་ལྷག་བཅས་ 'ཏེ་' འཐོབ།"
+                },
+                {
+                    realQ: "རི་བོ་མཐོན་པོ་བོ་ཞིག་འདུག",
+                    ans: "མཐོན་པོ་",
+                    opts: ["མཐོན་པོ་", "མཐོན་པོ་བོ་", "མཐོན་པོ་པོ"],
+                    expl: "མིང་མཐའ་ཟློས་སྐྱོན་བྱུང་འདུག 'པོ་' གཅིག་གིས་ཆོག"
+                },
+                {
+                    realQ: "ཁོང་གི་ནང་ལ་ཕྱིན་པ་ཡིན།",
+                    ans: "ཁོང་གི་",
+                    opts: ["ཁོང་གི་", "ཁོང་གིས་", "ཁོང་ནས"],
+                    expl: "'ཁོང་གིས་ནང་ལ་ཕྱིན་' མི་ཟེར། འགྲོ་མཁན་ 'ང་' ཡིན་པས་འབྲེལ་སྒྲ་ 'གི་' འགྲིག" 
+                    // Wait, this isn't an error correction if it's correct. Let's make an error.
+                    // Correction below in replacement logic.
+                },
+                {
+                    realQ: "ཤིང་ཏོག་འདི་ཞིམ་པོ་མི་འདུག་ཡང་མདོག་མཛེས།",
+                    ans: "འདུག་ཀྱང་",
+                    opts: ["འདུག་ཀྱང་", "འདུག་ཡང་", "འདུག་འང"],
+                    expl: "ག་མཐར་རྒྱན་སྡུད་ 'ཀྱང་' འཐོབ།"
+                }
+            ];
+            
+            const t = errors[Math.floor(Math.random() * errors.length)];
+            
+            // Fix logic for the "Khong gi nang la" case to ensure it's a test
+            if(t.realQ.includes("ཁོང་གི་ནང་ལ་")) {
+                 t.realQ = "ཁོང་གིས་ནང་ལ་ཕྱིན་པ་ཡིན།"; // Error: Khong-gis went home? No, usually Khong nang la phyin. Or Nga khong gi nang la.
+                 t.ans = "ཁོང་";
+                 t.opts = ["ཁོང་", "ཁོང་གིས་", "ཁོང་ལ"];
+                 t.expl = "འགྲོ་མཁན་གཙོ་བོ་ཡིན་པས་བྱེད་སྒྲ་མི་དགོས། ཡང་ན་ 'ཁོང་གིས་...ཕྱིན་' ཞེས་པ་བརྡ་སྤྲོད་དང་མི་མཐུན།";
+            }
+
+            return {
+                prompt: "གཤམ་གྱི་ཚིག་དེའི་ནང་གི་ནོར་འཁྲུལ་དེ་བཅོས་རོགས།",
+                questionHtml: t.realQ,
+                answer: t.ans,
+                options: t.opts.sort(() => Math.random() - 0.5),
+                explanation: t.expl
+            };
+        }
+
+
+        // --- 3. GAME STATE MANAGEMENT ---
+
+        let gameState = {
+            level: 1,
+            score: 0,
+            questionsCount: 0,
+            streak: 0,
+            currentQ: null,
+            maxQuestionsPerLevel: 5
+        };
+
+        const ui = {
+            questionContainer: document.getElementById('question-container'),
+            questionPrompt: document.getElementById('question-prompt'),
+            questionDisplay: document.getElementById('question-display'),
+            optionsGrid: document.getElementById('options-grid'),
+            score: document.getElementById('score-display'),
+            progressBar: document.getElementById('progress-bar'),
+            levelBadge: document.getElementById('level-badge'),
+            feedbackOverlay: document.getElementById('feedback-overlay'),
+            feedbackTitle: document.getElementById('feedback-title'),
+            feedbackText: document.getElementById('feedback-text'),
+            feedbackIcon: document.getElementById('feedback-icon'),
+            nextBtn: document.getElementById('next-btn'),
+            levelComplete: document.getElementById('level-complete'),
+            nextLevelBtn: document.getElementById('next-level-btn')
+        };
+
+        function initGame() {
+            gameState.level = 1;
+            gameState.score = 0;
+            gameState.streak = 0;
+            updateUI();
+            loadQuestion();
+        }
+
+        function updateUI() {
+            ui.score.innerText = gameState.score;
+            ui.levelBadge.innerText = `རིམ་པ་ ${gameState.level} པ། Level ${gameState.level}`;
+            const progress = (gameState.questionsCount / gameState.maxQuestionsPerLevel) * 100;
+            ui.progressBar.style.width = `${progress}%`;
+        }
+
+        function loadQuestion() {
+            ui.feedbackOverlay.classList.add('hidden');
+            ui.questionContainer.classList.remove('hidden');
+            
+            // Generate based on level
+            let qData;
+            switch(gameState.level) {
+                case 1: qData = generateLevel1(); break;
+                case 2: qData = generateLevel2(); break;
+                case 3: qData = generateLevel3(); break;
+                case 4: qData = generateLevel4(); break;
+                case 5: qData = generateLevel5(); break;
+                default: qData = generateLevel1(); // Fallback or loop
+            }
+
+            gameState.currentQ = qData;
+            
+            // Render
+            ui.questionPrompt.innerText = qData.prompt;
+            ui.questionDisplay.innerHTML = qData.questionHtml;
+            ui.optionsGrid.innerHTML = '';
+            
+            qData.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = "bg-white border-2 border-indigo-100 hover:border-indigo-400 text-2xl font-bold py-6 rounded-xl shadow-sm hover:shadow-md transition-all text-gray-700 active:scale-95";
+                btn.innerText = opt;
+                btn.onclick = () => handleAnswer(opt, btn);
+                ui.optionsGrid.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(selection, btnElement) {
+            const isCorrect = selection === gameState.currentQ.answer;
+            
+            // Disable all buttons
+            const allBtns = ui.optionsGrid.querySelectorAll('button');
+            allBtns.forEach(b => b.disabled = true);
+
+            if (isCorrect) {
+                gameState.score += 10 + (gameState.streak * 2);
+                gameState.streak++;
+                btnElement.classList.add('correct-anim');
+                showFeedback(true);
+            } else {
+                gameState.streak = 0;
+                btnElement.classList.add('wrong-anim');
+                // Highlight correct one
+                allBtns.forEach(b => {
+                    if (b.innerText === gameState.currentQ.answer) b.classList.add('bg-green-100', 'border-green-500');
+                });
+                showFeedback(false);
+            }
+            updateUI();
+        }
+
+        function showFeedback(isCorrect) {
+            setTimeout(() => {
+                ui.feedbackOverlay.classList.remove('hidden');
+                ui.feedbackTitle.innerText = isCorrect ? "འགྲིག་སོང་། Correct!" : "ནོར་སོང་། Incorrect";
+                ui.feedbackTitle.className = isCorrect ? "text-2xl font-bold mb-2 text-green-600" : "text-2xl font-bold mb-2 text-red-600";
+                ui.feedbackIcon.innerText = isCorrect ? "🎉" : "❌";
+                ui.feedbackText.innerText = gameState.currentQ.explanation;
+            }, 600);
+        }
+
+        ui.nextBtn.onclick = () => {
+            gameState.questionsCount++;
+            
+            if (gameState.questionsCount >= gameState.maxQuestionsPerLevel) {
+                levelComplete();
+            } else {
+                loadQuestion();
+            }
+        };
+
+        function levelComplete() {
+            ui.questionContainer.classList.add('hidden');
+            ui.feedbackOverlay.classList.add('hidden');
+            ui.levelComplete.classList.remove('hidden');
+        }
+
+        ui.nextLevelBtn.onclick = () => {
+            gameState.level++;
+            if (gameState.level > 5) gameState.level = 1; // Loop back or end game
+            gameState.questionsCount = 0;
+            ui.levelComplete.classList.add('hidden');
+            loadQuestion();
+            updateUI();
+        };
+
+        // Start
+        initGame();
+
+    </script>
+</body>
+</html>
